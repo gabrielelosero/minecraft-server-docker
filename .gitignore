@@ -1,0 +1,6 @@
+.env
+data/
+backups/
+CLAUDE.md
+data.before-restore-*/
+docker-compose.override.yml

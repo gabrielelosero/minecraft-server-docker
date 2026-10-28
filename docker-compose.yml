@@ -1,0 +1,61 @@
+# Managed Minecraft server with automatic backups.
+# All settings live in .env (see .env.example).
+
+services:
+  minecraft:
+    image: itzg/minecraft-server:java25
+    container_name: mc-server
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT:-25565}:25565"
+    environment:
+      EULA: "TRUE"
+      TYPE: ${SERVER_TYPE:-PAPER}
+      VERSION: ${MC_VERSION:-LATEST}
+      MEMORY: ${MEMORY:-2G}
+      MOTD: ${MOTD:-A Minecraft Server}
+      DIFFICULTY: ${DIFFICULTY:-normal}
+      MAX_PLAYERS: ${MAX_PLAYERS:-20}
+      OPS: ${OPS:-}
+      ENABLE_WHITELIST: ${ENABLE_WHITELIST:-false}
+      WHITELIST: ${WHITELIST:-}
+      # Plugins/mods to download automatically (Modrinth project slugs, comma-separated)
+      MODRINTH_PROJECTS: ${MODRINTH_PROJECTS:-}
+      TZ: ${TZ:-Europe/Rome}
+      # RCON lets the backup service pause world saving while copying files
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: ${RCON_PASSWORD:?set RCON_PASSWORD in .env}
+    volumes:
+      - ./data:/data
+    stop_grace_period: 1m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backup:
+    image: itzg/mc-backup:2026.10.2
+    container_name: mc-backup
+    restart: unless-stopped
+    depends_on:
+      minecraft:
+        condition: service_healthy
+    environment:
+      RCON_HOST: minecraft
+      RCON_PASSWORD: ${RCON_PASSWORD}
+      BACKUP_INTERVAL: ${BACKUP_INTERVAL:-6h}
+      INITIAL_DELAY: 2m
+      PRUNE_BACKUPS_DAYS: ${PRUNE_BACKUPS_DAYS:-7}
+      # Skip backups while nobody is playing (the world hasn't changed)
+      PAUSE_IF_NO_PLAYERS: ${PAUSE_IF_NO_PLAYERS:-true}
+      BACKUP_NAME: world
+      TZ: ${TZ:-Europe/Rome}
+    volumes:
+      - ./data:/data:ro
+      - ./backups:/backups
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
